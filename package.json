@@ -1,0 +1,18 @@
+{
+  "name": "comment-commander",
+  "main": "./lib/comment-commander",
+  "version": "0.0.0",
+  "description": "Take command of comment blocks",
+  "keywords": [
+  ],
+  "activationCommands": {
+    "atom-workspace": "comment-commander:format-comment"
+  },
+  "repository": "https://github.com/spencerlyon2/comment-commander",
+  "license": "MIT",
+  "engines": {
+    "atom": ">=1.0.0 <2.0.0"
+  },
+  "dependencies": {
+  }
+}
