@@ -52,21 +52,44 @@ module.exports =
     # extract the comment begin marker
     pos = editor.getCursorBufferPosition()
     scope = editor.scopeDescriptorForBufferPosition(pos)
-    return atom.config.getAll('editor.commentStart', {scope})[0].value
+    out = atom.config.getAll('editor.commentStart', {scope})?[1]?.value.trim() or atom.config.getAll('editor.commentStart', {scope})?[0]?.value.trim()
+    return out + ' '
+  # Get character(s) that ends a comment for the given grammar
+  #
+  # editor - An instance of an atom text editor
+  #
+  # A String containing the comment end mark
+  getCommentEnder: (editor) ->
+    # extract the comment begin marker
+    pos = editor.getCursorBufferPosition()
+    scope = editor.scopeDescriptorForBufferPosition(pos)
+    commentEnder = ' ' + atom.config.getAll('editor.commentEnd', {scope})?[0]?.value.trim()
+    out = commentEnder or getCommentStarter editor
+    return out
 
   # Create the header that will be used to replace
   #
   # editor - An instance of an atom text editor
   #
   # A String containing the comment start mark
-  createHeader: (commentStarter, headContent, numLeadSpace) ->
+  createHeader: (commentStarter, commentEnder,  headContent, numLeadSpace) ->
       # extract the filler from the package settings
       filler = atom.config.get('comment-commander.fillerMark')
 
-      # create lines
-      filled = Array(headContent.length+1).join(filler)
-      topBtmLines = "#{commentStarter}#{filled} #{commentStarter}\n"
-      midLine = "#{commentStarter}#{headContent} #{commentStarter}\n"
+      # create an array to hold the
+      longFiller = ''
+      filled = ''
+
+      for i in Array headContent.length
+        longFiller += filler
+
+      i = 0
+      while i < headContent.length
+        filled += longFiller.charAt i
+        i++
+
+      topBtmLines = "#{commentStarter}#{filled}#{commentEnder}\n"
+      midLine = "#{commentStarter}#{headContent}#{commentEnder}\n"
 
       fillSpaces = Array(numLeadSpace).join(' ')
       out = "#{topBtmLines}#{fillSpaces}#{midLine}#{fillSpaces}#{topBtmLines}"
@@ -86,7 +109,9 @@ module.exports =
 
       # build up the actual comment we want
       commentStarter = @getCommentStarter editor
-      fullContent = @createHeader(commentStarter, headContent, position[0].column+1)
+      commentEnder = @getCommentEnder editor
+      console.log 'CC: ' + commentEnder
+      fullContent = @createHeader(commentStarter, commentEnder, headContent, position[0].column+1)
       # console.log fullContent
 
       # now do replacement
