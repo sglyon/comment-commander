@@ -52,24 +52,82 @@ module.exports =
     # extract the comment begin marker
     pos = editor.getCursorBufferPosition()
     scope = editor.scopeDescriptorForBufferPosition(pos)
-    return atom.config.getAll('editor.commentStart', {scope})[0].value
+    out = null
+
+    # get the commentStart and blockCommentStart strings
+    commentStart = atom.config.getAll('editor.commentStart', {scope})?[0]?.value.trim()
+    blockCommentStart = atom.config.getAll('editor.commentStart', {scope})?[1]?.value.trim()
+
+    # if the regular commentStart string makes sense for the end commentStart, use it
+    # otherwise use the blockComment style of commenting (good for html, xml etc)
+    if (/^(.)\1+$/.test commentStart) or (commentStart?.length == 1)
+      out = commentStart
+    else
+      out = blockCommentStart or commentStart or null
+
+    return out + ' ' if out
+    return out
+
+  # Get character(s) that ends a comment for the given grammar
+  #
+  # editor - An instance of an atom text editor
+  #
+  # A String containing the comment end mark
+  getCommentEnder: (editor) ->
+    # extract the comment begin marker
+    pos = editor.getCursorBufferPosition()
+    scope = editor.scopeDescriptorForBufferPosition(pos)
+
+    # if the regular commentStart string makes sense for the end commentStart, use it
+    # otherwise use the blockComment style of commenting (good for html, xml etc)
+    commentStart = atom.config.getAll('editor.commentStart', {scope})?[0]?.value.trim()
+    if (/^(.)\1+$/.test commentStart) or (commentStart?.length == 1)
+      out = commentStart
+    else
+      out = atom.config.getAll('editor.commentEnd', {scope})?[0]?.value.trim() or null
+
+    return ' ' + out if out
+    return out
 
   # Create the header that will be used to replace
   #
   # editor - An instance of an atom text editor
   #
   # A String containing the comment start mark
-  createHeader: (commentStarter, headContent, numLeadSpace) ->
+  createHeader: (commentStarter, commentEnder,  headContent, numLeadSpace) ->
+      topBtmLines = ''
+      console.info 'commentStarter: ' +  commentStarter + ' | '+ 'commentEnder: ' + commentEnder
       # extract the filler from the package settings
       filler = atom.config.get('comment-commander.fillerMark')
 
-      # create lines
-      filled = Array(headContent.length+1).join(filler)
-      topBtmLines = "#{commentStarter}#{filled} #{commentStarter}\n"
-      midLine = "#{commentStarter}#{headContent} #{commentStarter}\n"
+      # create vars to hold the filler and final filled output
+      # (helpful if multiple fill characters are specified)
+      longFiller = ''
+      filled = ''
 
-      fillSpaces = Array(numLeadSpace).join(' ')
-      out = "#{topBtmLines}#{fillSpaces}#{midLine}#{fillSpaces}#{topBtmLines}"
+      # populate the longFiller var (will be longer than the headContent
+      # if there are more than one character specified in the fillerMark
+      # config option)
+      for i in Array headContent.length
+        longFiller += filler
+
+      # iterate through the longFiller string for the length of the actual
+      # headContent and build the "filled" string
+      i = 0
+      while i < headContent.length
+        filled += longFiller.charAt i
+        i++
+
+      # if we are in a grammar that supports comments, build the comment block
+      if commentStarter?.length and commentEnder?.length
+        topBtmLines = "#{commentStarter}#{filled}#{commentEnder}\n"
+        midLine = "#{commentStarter}#{headContent}#{commentEnder}\n"
+
+        fillSpaces = Array(numLeadSpace).join(' ')
+        out = "#{topBtmLines}#{fillSpaces}#{midLine}#{fillSpaces}#{topBtmLines}"
+      else
+        # deal with grammars that do not have comments, or files with unknown grammar
+        out = "#{headContent}"
 
   # Transform the contents of the current cursor line by surrounding it with
   # the comment begin marker, then appending copies of the adjusted line with
@@ -85,9 +143,9 @@ module.exports =
       headContent = editor.getTextInBufferRange position
 
       # build up the actual comment we want
-      commentStarter = @getCommentStarter editor
-      fullContent = @createHeader(commentStarter, headContent, position[0].column+1)
-      # console.log fullContent
+      commentStarter = @getCommentStarter editor or null
+      commentEnder = @getCommentEnder editor or null
+      fullContent = @createHeader(commentStarter, commentEnder, headContent, position[0].column+1)
 
       # now do replacement
       editor.setTextInBufferRange(position, fullContent)
